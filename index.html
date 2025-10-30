@@ -10,12 +10,13 @@
       --ok:#16a34a; --err:#dc2626; --grid:#e2e8f0; --grid-strong:#94a3b8;
       --shadow:0 10px 30px -14px rgba(2,6,23,.25);
       --radius:14px;
-      /* badge backgrounds - PHƯƠNG ÁN 2 (NỔI BẬT CAO) */
-      --badge-less-bg: #86efac;   /* xanh đậm hơn - nhỏ hơn BĐ */
-      --badge-bd1-bg: #f7e563;    /* vàng sáng - >= BĐ1 */
-      --badge-bd2-bg: #fb923c;    /* cam sáng - >= BĐ2 */
-      --badge-bd3-bg: #f87171;    /* đỏ tươi - >= BĐ3 */
-      --badge-text: #000;         /* chữ đậm màu đen cho tất cả badge */
+      /* badge backgrounds */
+      --badge-less-bg: #86efac;
+      --badge-bd1-bg: #f7e563;
+      --badge-bd2-bg: #fb923c;
+      --badge-bd3-bg: #f87171;
+      --badge-text: #000;
+      --prov-offset: 0px; /* để dịch cả khung province */
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -76,6 +77,17 @@
     .summary{font-size:13px; color:#1f2937}
     .toolbar-actions{display:flex; gap:8px}
 
+    /* nếu muốn floating ở góc phải, gắn class fixed-export-actions */
+    .fixed-export-actions {
+      position: fixed;
+      top: 92px;
+      right: 18px;
+      z-index: 1200;
+      display:flex; gap:8px; align-items:center;
+      background: rgba(255,255,255,0.94);
+      padding:6px; border-radius:10px; box-shadow:0 6px 18px rgba(2,6,23,.08);
+    }
+
     /* ===== RESULTS GRID (table left + chart right) ===== */
     .results-grid{
       display:grid;
@@ -124,7 +136,6 @@
     .detail-table thead th, .detail-table tbody td{padding:6px 10px; border-right:1px solid var(--grid-strong); border-bottom:1px solid var(--grid-strong); text-align:center}
     .detail-table tbody td.station{position:sticky; left:0; background:#fff; text-align:left; font-weight:700; z-index:3; min-width:180px}
     .badge{display:inline-block;padding:6px 10px;border-radius:8px;font-weight:900;color:var(--badge-text); font-size:13px}
-    /* badge classes (PHƯƠNG ÁN 2) */
     .badge.less{ background: var(--badge-less-bg); color: var(--badge-text); font-weight:900; }
     .badge.bd1 { background: var(--badge-bd1-bg); color: var(--badge-text); font-weight:900; }
     .badge.bd2 { background: var(--badge-bd2-bg); color: var(--badge-text); font-weight:900; }
@@ -137,6 +148,28 @@
       .toolbar{top:calc(64px + 8px)}
       .results-grid{grid-template-columns:1fr}
     }
+
+    /* ===== province filters (checkbox tỉnh) ===== */
+    .province-filters {
+      margin-left: var(--prov-offset);
+      transition: margin-left .18s ease;
+      margin-top:8px;
+      max-height:220px;
+      overflow:auto;
+      border:1px solid #eef2f6;
+      padding:8px;
+      border-radius:8px;
+      background:#fff;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .province-filters label{
+      display:flex; align-items:center; gap:8px; padding:6px 8px; font-size:13px; border-radius:6px;
+    }
+    .province-filters label:hover{ background:#f8fafc; }
+    .province-filters input[type="checkbox"]{ width:16px; height:16px; margin:0; }
+
   </style>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -172,9 +205,27 @@
     <!-- Chọn trạm & thời gian -->
     <div class="section">
       <h3 class="section-title">Chọn trạm & thời gian</h3>
-      <label>Chọn các trạm (Giữ Ctrl/Shift để chọn nhiều)</label>
+
+      <!-- INSERTED: province filters + actions -->
+      <div style="font-size:12px;color:#475569;margin-bottom:6px">Lọc theo tỉnh/thành</div>
+      <div class="prov-actions" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <label style="display:flex;align-items:center;gap:8px;margin:0">
+            <input type="checkbox" id="chkSelectAllProv"> <span style="font-weight:700;margin-left:6px">Chọn tất cả tỉnh</span>
+          </label>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="btnClearProv" class="btn ghost" style="padding:6px 8px;min-width:80px">Bỏ chọn</button>
+        </div>
+      </div>
+
+      <div id="provinceHolder" class="province-filters" aria-live="polite">
+        <div style="color:#94a3b8;font-size:13px">Chưa nạp file Excel.</div>
+      </div>
+
+      <label style="margin-top:8px">Chọn các trạm (Giữ Ctrl/Shift để chọn nhiều)</label>
       <select id="multiSelect" multiple size="10" style="height:240px"></select>
-      <div class="status" style="color:var(--muted)">Mặc định chọn 4 trạm đầu tiên. Chọn nhiều trạm: bảng sẽ có thanh kéo ngang.</div>
+      <div id="provStatus" class="status" style="color:var(--muted)">Mặc định chọn tất cả trạm hiển thị. Chọn nhiều trạm: bảng sẽ có thanh kéo ngang.</div>
 
       <div class="dt" style="margin-top:10px">
         <div>
@@ -264,7 +315,7 @@
   <main style="display:grid; gap:16px;">
     <div class="card toolbar">
       <div class="summary" id="summary">Chưa có dữ liệu. Hãy chọn trạm & thời gian rồi bấm “Lấy dữ liệu”.</div>
-      <div class="toolbar-actions">
+      <div class="toolbar-actions fixed-export-actions">
         <button id="btnExport" class="btn ghost" disabled>Tải CSV</button>
         <button id="btnExportXlsx" class="btn ghost" disabled>Tải Excel (.xlsx)</button>
       </div>
@@ -288,10 +339,7 @@
         </div>
       </div>
 
-      <!-- ===== ADDED: BẢNG TỔNG HỢP (GIỐNG ẢNH) =====
-           - Giữ nguyên giao diện cũ, chèn bảng ngay dưới vùng results-grid
-           - Bảng được sinh từ window.__LAST_DATASETS (được tạo khi bấm Lấy dữ liệu)
-      -->
+      <!-- ===== ADDED: BẢNG TỔNG HỢP (GIỐNG ẢNH) ===== -->
       <div style="margin-top:12px">
         <div style="font-weight:800; margin-bottom:6px">BẢNG TỔNG HỢP CHI TIẾT (như mẫu)</div>
         <div class="scroll" style="border-radius:10px; padding:8px; background:#fff">
@@ -410,6 +458,9 @@ function loadFromWorkbook(wb){
   if (!stations.length) throw new Error('Không đọc được danh sách trạm từ Excel.');
   $('#xlsxStatus').className='status ok';
   $('#xlsxStatus').textContent=`Đã nạp ${stations.length} trạm.`;
+
+  // build province filters then fill select based on selected provinces
+  buildProvinceFilters();
   fillStationSelects();
 }
 async function tryAutoLoadExcel(){
@@ -524,7 +575,6 @@ function findBDFor(stationName){
 }
 
 /* ===== CHART (SVG thuần, robust) ===== */
-/* (giữ nguyên phần chart) */
 function parseTimeMaybe(s){
   if(s==null) return NaN;
   const t=String(s).trim(); if(!t) return NaN;
@@ -641,7 +691,7 @@ function renderChart(rows){
     function drawHLine(val, color, label){
       if(val==null || !Number.isFinite(val)) return;
       const y = sy(val);
-      if (y < m.t-4 || y > H-m.b+4) return; // ngoài khung thì bỏ
+      if (y < m.t-4 || y > H-m.b+4) return;
       const line=document.createElementNS(svg.namespaceURI,'line');
       line.setAttribute('x1',m.l); line.setAttribute('y1',y);
       line.setAttribute('x2',W-m.r); line.setAttribute('y2',y);
@@ -719,19 +769,8 @@ function renderChart(rows){
 /* ===== DETAIL SUMMARY BUILD + RENDER (ADDED) ===== */
 function fmt(v, d=2){ if(v==null || Number.isNaN(v)) return ''; return Number(v).toFixed(d); }
 
-/*
-  Quy tắc hiển thị ký hiệu và chuỗi BĐ:
-  - Nếu có numeric lastVal:
-      * Nếu gần bằng (eps) BD3/BD2/BD1 => symbol '=' và BD đó (diff ~0)
-      * Else if >= BD3 => '>' và BĐ3
-      * Else if >= BD2 => '>' và BĐ2
-      * Else if >= BD1 => '>' và BĐ1
-      * Else '<' và BĐ1
-    Hiển thị: "< BĐ 1: 0.85" hoặc "> BĐ 2: 3.35" hoặc "= BĐ 1: 0.00"
-  - Nếu API trả raw có operator ('>','<','=') và numeric part:
-      * Sử dụng operator làm symbol; chọn BĐ theo quy tắc: nếu value >= bd3 -> BĐ3; else if >=bd2 -> BĐ2; else if >=bd1 -> BĐ1; else BĐ1
-  - Nếu không có dữ liệu numeric hoặc raw -> "No data"
-*/
+/* ... buildDetailSummaryRows, renderDetailTable ... (kept as in original) ... */
+
 function buildDetailSummaryRows(stationsList, datasets){
   const rows = [];
   for(const s of stationsList){
@@ -763,11 +802,10 @@ function buildDetailSummaryRows(stationsList, datasets){
     const ssb2 = (lastValNum!=null && bd.bd2!=null)? (lastValNum - bd.bd2) : null;
     const ssb3 = (lastValNum!=null && bd.bd3!=null)? (lastValNum - bd.bd3) : null;
 
-    // determine symbol + BD label + diff + badge class
     let symbol = '';
     let bdLabel = '';
     let diff = null;
-    let cls = '';        // badge class suffix: 'less', 'bd1', 'bd2', 'bd3'
+    let cls = '';
     let levelNum = 0;
 
     (function determine(){
@@ -775,7 +813,6 @@ function buildDetailSummaryRows(stationsList, datasets){
       const rawOpMatch = raw.match(/^([<>]=?|=)\s*(\d+(\.\d+)?)/);
       const eps = 0.01;
 
-      // helper to pick BD by numeric value
       function pickBDByValue(v){
         if(v==null) return {label:'BĐ 1', val: bd.bd1, level:1};
         if(bd.bd3!=null && v >= bd.bd3) return {label:'BĐ 3', val: bd.bd3, level:3};
@@ -785,35 +822,29 @@ function buildDetailSummaryRows(stationsList, datasets){
       }
 
       if(rawOpMatch){
-        // API provided operator + number
         const op = rawOpMatch[1];
         const num = toNum(rawOpMatch[2]);
-        symbol = op.replace('>=','>').replace('<=','<'); // normalize to single-char for display
+        symbol = op.replace('>=','>').replace('<=','<');
         const picked = pickBDByValue(num);
         bdLabel = picked.label;
         levelNum = picked.level;
         if(picked.val!=null) diff = Math.abs(num - picked.val);
       } else if (Number.isFinite(lastValNum)){
-        // numeric logic: check equals (eps) first, then >= thresholds
         if(bd.bd3!=null && Math.abs(lastValNum - bd.bd3) <= eps){ symbol='='; bdLabel='BĐ 3'; diff = Math.abs(lastValNum - bd.bd3); levelNum = 3; }
         else if(bd.bd2!=null && Math.abs(lastValNum - bd.bd2) <= eps){ symbol='='; bdLabel='BĐ 2'; diff = Math.abs(lastValNum - bd.bd2); levelNum = 2; }
         else if(bd.bd1!=null && Math.abs(lastValNum - bd.bd1) <= eps){ symbol='='; bdLabel='BĐ 1'; diff = Math.abs(lastValNum - bd.bd1); levelNum = 1; }
         else if(bd.bd3!=null && lastValNum >= bd.bd3){ symbol='>'; bdLabel='BĐ 3'; diff = Math.abs(lastValNum - bd.bd3); levelNum = 3; }
         else if(bd.bd2!=null && lastValNum >= bd.bd2){ symbol='>'; bdLabel='BĐ 2'; diff = Math.abs(lastValNum - bd.bd2); levelNum = 2; }
         else if(bd.bd1!=null && lastValNum >= bd.bd1){ symbol='>'; bdLabel='BĐ 1'; diff = Math.abs(lastValNum - bd.bd1); levelNum = 1; }
-        else if(bd.bd1!=null){ symbol='<'; bdLabel='BĐ 1'; diff = Math.abs(lastValNum - bd.bd1); levelNum = 0; } // less than bd1
+        else if(bd.bd1!=null){ symbol='<'; bdLabel='BĐ 1'; diff = Math.abs(lastValNum - bd.bd1); levelNum = 0; }
         else { symbol=''; bdLabel=''; diff = null; levelNum = 0; }
       } else {
-        // no numeric info
         symbol = '';
         bdLabel = '';
         diff = null;
         levelNum = 0;
       }
 
-      // Map to badge class:
-      // - If symbol is '<' => less (green)
-      // - Else use levelNum: 1 -> bd1 (yellow light), 2 -> bd2 (orange), 3 -> bd3 (red)
       if(symbol === '<'){
         cls = 'less';
       } else {
@@ -824,7 +855,6 @@ function buildDetailSummaryRows(stationsList, datasets){
       }
     })();
 
-    // prepare display string for Hiện trạng cell: e.g. "> BĐ 1: 3.35"
     let stateDisplay = '';
     if(symbol){
       if(diff!=null && !Number.isNaN(diff)){
@@ -851,7 +881,6 @@ function renderDetailTable(){
   const datasets = window.__LAST_DATASETS || {};
   const rows = buildDetailSummaryRows(stationsList, datasets);
 
-  // compute global recent timestamps across datasets (up to 7)
   const allTimes = [];
   Object.values(datasets).forEach(arr=>{
     arr.forEach(r=>{
@@ -862,13 +891,11 @@ function renderDetailTable(){
   const uniqTimes = Array.from(new Set(allTimes)).sort((a,b)=>parseTimeMaybe(a)-parseTimeMaybe(b));
   const lastTimesGlobal = uniqTimes.slice(Math.max(0, uniqTimes.length-7));
 
-  // header
   let hdr = '<tr><th>Trạm thủy văn</th><th>I</th><th>II</th><th>III</th>';
   for(const t of lastTimesGlobal) hdr += `<th style="min-width:64px">${t}</th>`;
   hdr += '<th>SSB1</th><th>SSB2</th><th>SSB3</th><th>Hiện trạng</th></tr>';
   document.getElementById('detailHead').innerHTML = hdr;
 
-  // body
   const tbody = document.getElementById('detailBody'); tbody.innerHTML = '';
   for(const r of rows){
     const tr = document.createElement('tr');
@@ -892,7 +919,6 @@ function renderDetailTable(){
     html += `<td>${r.ssb2!=null?fmt(r.ssb2):''}</td>`;
     html += `<td>${r.ssb3!=null?fmt(r.ssb3):''}</td>`;
 
-    // Hiện trạng: show badge with stateDisplay — use cls assigned earlier (less, bd1, bd2, bd3)
     const badgeClass = r.cls ? `badge ${r.cls}` : '';
     const badge = r.cls ? `<span class="${badgeClass}">${r.stateDisplay}</span>` : r.stateDisplay;
     html += `<td>${badge}</td>`;
@@ -902,9 +928,88 @@ function renderDetailTable(){
   window.__DETAIL_ROWS = rows;
 }
 
+/* ===== Province filters JS ===== */
+function getSelectedProvinces(){
+  const holder = document.getElementById('provinceHolder');
+  if(!holder) return null;
+  return Array.from(holder.querySelectorAll('input.prov-chk:checked')).map(i=>i.value);
+}
+
+function buildProvinceFilters(){
+  const holder = document.getElementById('provinceHolder');
+  if(!holder) return;
+  holder.innerHTML = '';
+
+  const map = new Map();
+  stations.forEach(s=>{
+    const key = (s.matinh ?? '').toString().trim();
+    const label = key || '(không rõ)';
+    if(!map.has(key)) map.set(key, label);
+  });
+  const provs = Array.from(map.entries()).sort((a,b)=> String(a[1]).localeCompare(String(b[1])));
+
+  if(!provs.length){
+    holder.innerHTML = '<div style="color:#94a3b8;font-size:13px">Không tìm thấy trường tỉnh (matinh) trong Excel.</div>';
+    return;
+  }
+
+  provs.forEach(([key,label])=>{
+    const id = 'prov_' + btoa(unescape(encodeURIComponent(key||'empty'))).replace(/=/g,'');
+    const lab = document.createElement('label');
+    lab.innerHTML = `<input class="prov-chk" type="checkbox" value="${key}" id="${id}" checked> <span style="margin-left:6px">${label}</span>`;
+    holder.appendChild(lab);
+  });
+
+  holder.querySelectorAll('input.prov-chk').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const all = holder.querySelectorAll('input.prov-chk'), checked = holder.querySelectorAll('input.prov-chk:checked');
+      document.getElementById('chkSelectAllProv').checked = (all.length === checked.length);
+      updateMultiSelectByProvince();
+    });
+  });
+
+  const chkAll = document.getElementById('chkSelectAllProv');
+  if(chkAll){
+    chkAll.checked = true;
+    chkAll.addEventListener('change', (e)=>{
+      const val = !!e.target.checked;
+      holder.querySelectorAll('input.prov-chk').forEach(cb=> cb.checked = val);
+      updateMultiSelectByProvince();
+    });
+  }
+  const btnClearProv = document.getElementById('btnClearProv');
+  if(btnClearProv){
+    btnClearProv.addEventListener('click', ()=>{
+      holder.querySelectorAll('input.prov-chk').forEach(cb=> cb.checked = false);
+      if(chkAll) chkAll.checked = false;
+      updateMultiSelectByProvince();
+    });
+  }
+
+  updateMultiSelectByProvince();
+}
+
+function updateMultiSelectByProvince(){
+  const selProv = getSelectedProvinces();
+  const box = document.getElementById('multiSelect');
+  if(!box) return;
+  box.innerHTML = '';
+  const filtered = (Array.isArray(selProv) && selProv.length>0)
+    ? stations.filter(s=> selProv.includes((s.matinh||'').toString()))
+    : stations.slice();
+  filtered.forEach(r=>{
+    const o = document.createElement('option');
+    o.value = stations.indexOf(r);
+    o.textContent = (r.tentram||'(không tên)').trim();
+    box.appendChild(o);
+  });
+  for(let i=0;i<box.options.length;i++) box.options[i].selected = true;
+  const ps = document.getElementById('provStatus');
+  if(ps) ps.textContent = `Hiển thị ${filtered.length} trạm theo bộ lọc tỉnh.`;
+}
+
 /* ===== MAIN FLOW ===== */
 async function init(){
-  // mặc định: start = 00:00 của 2 ngày trước; end = now
   const now=new Date(), s0=new Date(now); s0.setDate(now.getDate()-2); s0.setHours(0,0,0,0);
   $('#startDt').value=toLocalDT(s0);
   $('#endDt').value=toLocalDT(now);
@@ -956,12 +1061,10 @@ async function init(){
       }
     }));
 
-    // lưu datasets & stations global để phần tổng hợp dùng
     window.__LAST_DATASETS = datasets;
     window.__STATIONS_LIST = stations;
-    try{ localStorage.setItem('__LAST_DATASETS_JSON', JSON.stringify(datasets)); }catch(e){/* ignore storage errors */ }
+    try{ localStorage.setItem('__LAST_DATASETS_JSON', JSON.stringify(datasets)); }catch(e){}
 
-    // pivot theo thời gian (giữ nguyên)
     const timeIndex=new Map();
     const names=Object.keys(datasets);
     for(const n of names){
@@ -977,7 +1080,6 @@ async function init(){
       .sort((a,b)=>String(a['thoi gian']).localeCompare(String(b['thoi gian'])));
     renderTable(rows);
 
-    // cập nhật bảng tổng hợp chi tiết (mới thêm) — không làm thay đổi giao diện gốc
     initBDLevels();
     renderDetailTable();
     $('#summary').textContent='Hoàn tất lấy dữ liệu.';
