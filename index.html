@@ -623,14 +623,14 @@ function renderChart(rows){
 
   // Tiêu đề nhỏ phía trên
   const title = document.createElement('div');
-  title.style.cssText='font-size:12px;color:#64748b;margin-bottom:8px';
+  title.style.cssText='font-size:16px;color:#64748b;margin-bottom:12px';
   title.textContent='Đồ thị quá trình mực nước — dữ liệu từ bảng đang hiển thị.';
   host.appendChild(title);
 
   const {series, xType, xValues, xLabels} = buildSeriesFromRows(rows);
   if(!series.length){
     const div=document.createElement('div');
-    div.style.cssText='font-size:12px;color:#64748b';
+    div.style.cssText='font-size:16px;color:#64748b';
     div.textContent='Không đủ dữ liệu số để vẽ đồ thị.';
     host.appendChild(div);
     return;
