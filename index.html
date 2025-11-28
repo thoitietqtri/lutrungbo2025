@@ -620,6 +620,8 @@ function buildSeriesFromRows(rows){
 function renderChart(rows){
   const host = $('#chartBox');
   host.innerHTML = '';
+
+  // Tiêu đề nhỏ phía trên
   const title = document.createElement('div');
   title.style.cssText='font-size:12px;color:#64748b;margin-bottom:8px';
   title.textContent='Đồ thị quá trình mực nước — dữ liệu từ bảng đang hiển thị.';
@@ -627,86 +629,132 @@ function renderChart(rows){
 
   const {series, xType, xValues, xLabels} = buildSeriesFromRows(rows);
   if(!series.length){
-    const div=document.createElement('div'); div.style.cssText='font-size:12px;color:#64748b';
+    const div=document.createElement('div');
+    div.style.cssText='font-size:12px;color:#64748b';
     div.textContent='Không đủ dữ liệu số để vẽ đồ thị.';
-    host.appendChild(div); return;
+    host.appendChild(div);
+    return;
   }
 
-  const bar=document.createElement('div');
-  bar.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px';
-  host.appendChild(bar);
+  /* ====== MENU XỔ XUỐNG CHỌN TRẠM ====== */
+  const rowDiv = document.createElement('div');
+  rowDiv.className = 'chart-station-row';
 
-  let selected=series[0].name;
+  const label = document.createElement('span');
+  label.textContent = 'Chọn trạm hiển thị:';
+  label.style.cssText = 'font-size:12px;color:#64748b;';
+  rowDiv.appendChild(label);
+
+  const select = document.createElement('select');
+  select.id = 'chartStationSelect';
+  select.className = 'chart-station-select';
+
+  series.forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = s.name;
+    opt.textContent = s.name;
+    select.appendChild(opt);
+  });
+
+  rowDiv.appendChild(select);
+  host.appendChild(rowDiv);
+  /* ====================================== */
+
+  let selected = series[0].name;
+  select.value = selected;
 
   function draw(){
-    const old=host.querySelector('svg'); if(old) old.remove();
-    const sel=series.find(s=>s.name===selected) || series[0];
-    const data=sel.data;
+    const old = host.querySelector('svg');
+    if(old) old.remove();
 
-    const W=host.clientWidth||800, H=330, m={l:48,r:16,t:12,b:28};
-    const minX=Math.min(...data.map(d=>d.x)), maxX=Math.max(...data.map(d=>d.x));
-    let minY=Math.min(...data.map(d=>d.y)), maxY=Math.max(...data.map(d=>d.y));
-    if(minY===maxY) maxY=minY+1e-6;
+    const sel = series.find(s=>s.name === selected) || series[0];
+    const data = sel.data;
 
-    const sx=x=> m.l + ((x-minX)/(maxX-minX||1))*(W-m.l-m.r);
-    const sy=y=> H-m.b - ((y-minY)/(maxY-minY||1))*(H-m.t-m.b);
+    const W = host.clientWidth || 800;
+    const H = 330;
+    const m = { l:48, r:16, t:12, b:28 };
 
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.setAttribute('width','100%'); svg.setAttribute('height',H);
+    const minX = Math.min(...data.map(d=>d.x));
+    const maxX = Math.max(...data.map(d=>d.x));
+    let minY = Math.min(...data.map(d=>d.y));
+    let maxY = Math.max(...data.map(d=>d.y));
+    if(minY === maxY) maxY = minY + 1e-6;
+
+    const sx = x => m.l + ((x-minX)/(maxX-minX || 1))*(W-m.l-m.r);
+    const sy = y => H-m.b - ((y-minY)/(maxY-minY || 1))*(H-m.t-m.b);
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('width','100%');
+    svg.setAttribute('height',H);
     svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
     host.appendChild(svg);
 
-    const yTicks=5, xTicks=Math.min(6, Math.max(1, data.length-1));
-    const yStep=(maxY-minY)/yTicks, xStep=(maxX-minX)/xTicks;
+    const yTicks = 5;
+    const xTicks = Math.min(6, Math.max(1, data.length-1));
+    const yStep = (maxY-minY)/yTicks;
+    const xStep = (maxX-minX)/xTicks;
 
-    // grid
+    // grid ngang
     for(let i=0;i<=yTicks;i++){
-      const y=sy(minY+i*yStep);
-      const line=document.createElementNS(svg.namespaceURI,'line');
-      line.setAttribute('x1',m.l); line.setAttribute('y1',y);
-      line.setAttribute('x2',W-m.r); line.setAttribute('y2',y);
-      line.setAttribute('stroke','#e2e8f0'); line.setAttribute('stroke-dasharray','3 3');
+      const y = sy(minY + i*yStep);
+      const line = document.createElementNS(svg.namespaceURI,'line');
+      line.setAttribute('x1',m.l);
+      line.setAttribute('y1',y);
+      line.setAttribute('x2',W-m.r);
+      line.setAttribute('y2',y);
+      line.setAttribute('stroke','#e2e8f0');
+      line.setAttribute('stroke-dasharray','3 3');
       svg.appendChild(line);
     }
+    // grid dọc
     for(let i=0;i<=xTicks;i++){
-      const x=sx(minX+i*xStep);
-      const line=document.createElementNS(svg.namespaceURI,'line');
-      line.setAttribute('x1',x); line.setAttribute('y1',m.t);
-      line.setAttribute('x2',x); line.setAttribute('y2',H-m.b);
-      line.setAttribute('stroke','#e2e8f0'); line.setAttribute('stroke-dasharray','3 3');
+      const x = sx(minX + i*xStep);
+      const line = document.createElementNS(svg.namespaceURI,'line');
+      line.setAttribute('x1',x);
+      line.setAttribute('y1',m.t);
+      line.setAttribute('x2',x);
+      line.setAttribute('y2',H-m.b);
+      line.setAttribute('stroke','#e2e8f0');
+      line.setAttribute('stroke-dasharray','3 3');
       svg.appendChild(line);
     }
 
     // Đường quá trình (màu xanh)
-    let d=`M ${sx(data[0].x)} ${sy(data[0].y)}`;
+    let d = `M ${sx(data[0].x)} ${sy(data[0].y)}`;
     for(let i=1;i<data.length;i++) d += ` L ${sx(data[i].x)} ${sy(data[i].y)}`;
-    const path=document.createElementNS(svg.namespaceURI,'path');
-    path.setAttribute('d', d); path.setAttribute('fill','none');
-    path.setAttribute('stroke','#0ea5e9'); path.setAttribute('stroke-width','2');
+    const path = document.createElementNS(svg.namespaceURI,'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke','#0ea5e9');
+    path.setAttribute('stroke-width','2');
     svg.appendChild(path);
 
-    // ===== VẼ BĐ1/BĐ2/BĐ3 (vàng/da cam/đỏ) nếu có =====
+    // --- Vẽ BĐ1/BĐ2/BĐ3 nếu có ---
     const lv = findBDFor(sel.name);
     const COLORS = { bd1:'#eab308', bd2:'#f97316', bd3:'#ef4444' };
-    function drawHLine(val, color, label){
+
+    function drawHLine(val, color, labelTxt){
       if(val==null || !Number.isFinite(val)) return;
       const y = sy(val);
       if (y < m.t-4 || y > H-m.b+4) return;
-      const line=document.createElementNS(svg.namespaceURI,'line');
-      line.setAttribute('x1',m.l); line.setAttribute('y1',y);
-      line.setAttribute('x2',W-m.r); line.setAttribute('y2',y);
-      line.setAttribute('stroke',color); line.setAttribute('stroke-width','1.8');
+      const line = document.createElementNS(svg.namespaceURI,'line');
+      line.setAttribute('x1',m.l);
+      line.setAttribute('y1',y);
+      line.setAttribute('x2',W-m.r);
+      line.setAttribute('y2',y);
+      line.setAttribute('stroke',color);
+      line.setAttribute('stroke-width','1.8');
       line.setAttribute('stroke-dasharray','6 4');
       svg.appendChild(line);
 
-      const tag=document.createElementNS(svg.namespaceURI,'text');
+      const tag = document.createElementNS(svg.namespaceURI,'text');
       tag.setAttribute('x', W - m.r - 4);
       tag.setAttribute('y', y - 4);
       tag.setAttribute('text-anchor','end');
       tag.setAttribute('font-size','11');
       tag.setAttribute('font-weight','700');
       tag.setAttribute('fill', color);
-      tag.textContent = `${label} (${val})`;
+      tag.textContent = `${labelTxt} (${val})`;
       svg.appendChild(tag);
     }
     if(lv){
@@ -719,7 +767,10 @@ function renderChart(rows){
     function labelAt(xv){
       if(xType==='time'){
         let lo=0, hi=xValues.length-1;
-        while(hi-lo>1){ const mid=(lo+hi)>>1; (xValues[mid]<xv) ? (lo=mid):(hi=mid); }
+        while(hi-lo>1){
+          const mid=(lo+hi)>>1;
+          (xValues[mid]<xv) ? (lo=mid):(hi=mid);
+        }
         const idx=(Math.abs(xValues[lo]-xv)<=Math.abs(xValues[hi]-xv))?lo:hi;
         const raw=xLabels[idx]||'';
         const m=/\b(\d{2}):(\d{2})/.exec(String(raw));
@@ -729,42 +780,46 @@ function renderChart(rows){
         return xLabels[i] || `#${i+1}`;
       }
     }
+
     for(let i=0;i<=xTicks;i++){
-      const xv=minX+i*xStep, x=sx(xv);
+      const xv=minX+i*xStep;
+      const x=sx(xv);
       const t=document.createElementNS(svg.namespaceURI,'text');
-      t.setAttribute('x',x); t.setAttribute('y',H-6);
-      t.setAttribute('text-anchor','middle'); t.setAttribute('font-size','11'); t.setAttribute('fill','#334155');
+      t.setAttribute('x',x);
+      t.setAttribute('y',H-6);
+      t.setAttribute('text-anchor','middle');
+      t.setAttribute('font-size','11');
+      t.setAttribute('fill','#334155');
       t.textContent=labelAt(xv);
       svg.appendChild(t);
     }
     for(let i=0;i<=yTicks;i++){
-      const yv=minY+i*yStep, y=sy(yv);
+      const yv=minY+i*yStep;
+      const y=sy(yv);
       const t=document.createElementNS(svg.namespaceURI,'text');
-      t.setAttribute('x',m.l-6); t.setAttribute('y',y+4);
-      t.setAttribute('text-anchor','end'); t.setAttribute('font-size','11'); t.setAttribute('fill','#334155');
+      t.setAttribute('x',m.l-6);
+      t.setAttribute('y',y+4);
+      t.setAttribute('text-anchor','end');
+      t.setAttribute('font-size','11');
+      t.setAttribute('fill','#334155');
       t.textContent=yv.toFixed(2);
       svg.appendChild(t);
     }
   }
 
-  // Nút chọn series
-  series.forEach(s=>{
-    const b=document.createElement('button');
-    b.textContent=s.name;
-    b.style.cssText='padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;font-size:13px;cursor:pointer';
-    b.addEventListener('click',()=>{
-      selected=s.name;
-      [...bar.children].forEach(x=>{ x.style.background='#f8fafc'; x.style.color='initial'; });
-      b.style.background='#2563eb'; b.style.color='#fff';
-      draw();
-    });
-    bar.appendChild(b);
+  // đổi trạm bằng dropdown
+  select.addEventListener('change', function(){
+    selected = this.value;
+    draw();
   });
-  if(bar.firstChild){ bar.firstChild.click(); } else { draw(); }
 
+  draw();
+
+  // vẽ lại khi resize
   const ro = new ResizeObserver(()=>draw());
-  ro.observe($('#chartBox'));
+  ro.observe(host);
 }
+
 
 /* ===== DETAIL SUMMARY BUILD + RENDER (ADDED) ===== */
 function fmt(v, d=2){ if(v==null || Number.isNaN(v)) return ''; return Number(v).toFixed(d); }
